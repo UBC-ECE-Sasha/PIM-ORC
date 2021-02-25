@@ -10,6 +10,8 @@ So if you wanted to use the DPUs with 5 tasklets, the command would be: `make US
 
 Note that due a bug in the build process (Issue #1), the build will fail the first time around if using PIM. Simply run the `make` command twice to get the build to succeed. 
 
+If remaking with a different NR_TASKLETS, make sure to run `make clean` instead of `make` to rebuild the dpu binary file.
+
 ## Run
 To execute the program, run the following command:
 ```
