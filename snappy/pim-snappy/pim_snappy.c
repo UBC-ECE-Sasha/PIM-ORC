@@ -40,6 +40,17 @@ typedef struct caller_args {
 	int retval;                    // Return error code from processing request
 } caller_args_t;
 
+// Descriptors for DPUs for performance metrics
+typedef struct host_dpu_descriptor {
+	uint32_t perf; // value from the DPU's performance counter
+} host_dpu_descriptor;
+
+// Rank context struct for performance metrics
+typedef struct host_rank_context {
+	uint32_t dpu_count; // how many dpus are filled in the descriptor array
+	host_dpu_descriptor *dpus; // the descriptors for the dpus in this rank
+} host_rank_context;
+
 // Argument to DPU handler thread
 typedef struct master_args {
 	int stop_thread;                // Set to 1 to end dpu_master_thread
@@ -241,6 +252,9 @@ static void unload_rank(struct dpu_set_t *dpu_rank, master_args_t *args) {
 			// Get the return value
 			DPU_ASSERT(dpu_copy_from(dpu, "retval", i * sizeof(uint32_t), &(args->caller_args[req_idx]->retval), sizeof(uint32_t)));
 			args->caller_args[req_idx]->data_ready = 0;
+
+			// Get performance metrics
+			DPU_ASSERT(dpu_copy_from(dpu, "perf", i * sizeof(uint32_t), &(args->caller_args[req_idx]->retval), sizeof(uint32_t)));
 
 			// Copy the data
 			memcpy(args->caller_args[req_idx]->output->curr, &buf[dpu_count * max_output_length], args->caller_args[req_idx]->output->length);
