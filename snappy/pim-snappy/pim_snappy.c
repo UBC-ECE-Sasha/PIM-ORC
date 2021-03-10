@@ -411,6 +411,7 @@ void pim_deinit(void) {
 }
 
 int pim_decompress(const char *compressed, size_t compressed_length, char *uncompressed) {
+	struct timeval req_time;
 	// Set up in the input and output buffers
 	host_buffer_context_t input = {
 		.buffer = (char *)compressed,
@@ -447,7 +448,9 @@ int pim_decompress(const char *compressed, size_t compressed_length, char *uncom
 	
 	args.caller_args[args.req_head] = &m_args;
 	args.req_head = (args.req_head + 1) % total_request_slots;
+	gettimeofday(&first, NULL);
 	args.req_count++;
+	prinft("another request added at %f", first);
 	args.req_waiting++;
 	pthread_cond_broadcast(&dpu_cond);
 
