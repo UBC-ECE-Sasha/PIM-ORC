@@ -1406,7 +1406,16 @@ bool RawUncompress(const char* compressed, size_t compressed_length,
   ByteArraySource reader(compressed, compressed_length);
   return RawUncompress(&reader, uncompressed);
 #else
-  return (bool)pim_decompress(compressed, compressed_length, uncompressed);
+  size_t ulength;
+  if (!GetUncompressedLength(compressed, compressed_length, &ulength)) {
+    return false;
+  }
+  if(ulength == 262144)
+    return (bool)pim_decompress(compressed, compressed_length, uncompressed);
+  else{
+    ByteArraySource reader(compressed, compressed_length);
+    return RawUncompress(&reader, uncompressed);
+  }
 #endif
 }
 
