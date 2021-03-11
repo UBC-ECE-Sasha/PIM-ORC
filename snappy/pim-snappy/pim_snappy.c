@@ -23,6 +23,7 @@
 // TODO: consolidate these with what is in dpu_task.c, should be in one place
 #define MAX_INPUT_SIZE (256 * 1024)
 #define MAX_OUTPUT_SIZE (512 * 1024)
+#define OUTPUT_SIZE (256 * 1024)
 
 // Buffer context struct for input and output buffers on host
 typedef struct host_buffer_context
@@ -202,32 +203,17 @@ static void unload_rank(struct dpu_set_t *dpu_rank, master_args_t *args) {
 			// Get the output length
 			uint32_t output_length = 0;
 			DPU_ASSERT(dpu_copy_from(dpu, "output_length", i * sizeof(uint32_t), &output_length, sizeof(uint32_t)));
-			max_output_length = MAX(max_output_length, ALIGN(output_length, 8));
 			if (output_length == 0)
 				break;
 			total_dpu_count++;
 		}
 
 		// Get the decompressed buffer
-		// TODO: update how this is done so we don't need to malloc massive buffer
 		uint32_t dpu_count = 0;
-		uint8_t *buf = malloc(max_output_length * total_dpu_count);
 		DPU_FOREACH(*dpu_rank, dpu) {
 			if (dpu_count == total_dpu_count)
 				break;
-
-			// Set up the transfer
-			DPU_ASSERT(dpu_prepare_xfer(dpu, (void *)&buf[dpu_count * max_output_length]));
-			dpu_count++;
-		}
-
-		DPU_ASSERT(dpu_push_xfer(*dpu_rank, DPU_XFER_FROM_DPU, "output_buffer", i * MAX_OUTPUT_SIZE, max_output_length, DPU_XFER_DEFAULT));
-		
-		dpu_count = 0;
-		DPU_FOREACH(*dpu_rank, dpu) {
-			if (dpu_count == total_dpu_count)
-				break;
-
+			
 			// Get the request index
 			uint32_t req_idx = 0;
 			DPU_ASSERT(dpu_copy_from(dpu, "req_idx", i * sizeof(uint32_t), &req_idx, sizeof(uint32_t)));
@@ -242,12 +228,13 @@ static void unload_rank(struct dpu_set_t *dpu_rank, master_args_t *args) {
 			DPU_ASSERT(dpu_copy_from(dpu, "retval", i * sizeof(uint32_t), &(args->caller_args[req_idx]->retval), sizeof(uint32_t)));
 			args->caller_args[req_idx]->data_ready = 0;
 
-			// Copy the data
-			memcpy(args->caller_args[req_idx]->output->curr, &buf[dpu_count * max_output_length], args->caller_args[req_idx]->output->length);
+			// Set up the transfer
+			DPU_ASSERT(dpu_prepare_xfer(dpu, (void *)args->caller_args[req_idx]->output->curr));
 			dpu_count++;
 		}
 
-		free(buf);
+		DPU_ASSERT(dpu_push_xfer(*dpu_rank, DPU_XFER_FROM_DPU, "output_buffer", i * MAX_OUTPUT_SIZE, OUTPUT_SIZE, DPU_XFER_DEFAULT));
+
 	}
 }
 
