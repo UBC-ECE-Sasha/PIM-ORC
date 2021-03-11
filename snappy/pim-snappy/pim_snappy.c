@@ -49,6 +49,9 @@ typedef struct master_args {
 	uint32_t req_count;             // Number of occupied slots in caller_args
 	uint32_t req_waiting;           // Number of requests waiting that haven't been dispatched
 	caller_args_t **caller_args;    // Request buffer
+	uint32_t total_req_count;	// Total number of requests TODO: DELETE for testing
+	uint32_t req_per_sec;		// Frequency of requests TODO: DELETE for testing
+	struct timeval  prev_req_time;
 } master_args_t;
 
 // Stores number of allocated DPUs
@@ -290,7 +293,10 @@ static void * dpu_uncompress(void *arg) {
 		// Check if our conditions to send the requests are satisfied
 		bool send_req = false;
 		gettimeofday(&second, NULL);
-		if ((args->req_waiting >= REQUESTS_TO_WAIT_FOR) || (timediff(&first, &second) >= MAX_TIME_WAIT_S)) {
+		if ((args->req_waiting >= REQUESTS_TO_WAIT_FOR) || (args->total_req_count < 10) || (timediff(&first, &second) >= MAX_TIME_WAIT_S)) {
+			//if (args->req_waiting > 1) {
+			//	printf("num requests waiting: %d, num requests count: %d\n", args->req_waiting, args->total_req_count);
+			//}
 			send_req = true;
 		}
 		pthread_mutex_unlock(&mutex);
@@ -360,7 +366,10 @@ int pim_init(void) {
 	args.req_count = 0;
 	args.req_waiting = 0;
 	args.caller_args = (caller_args_t **)malloc(sizeof(caller_args_t *) * total_request_slots);
-	
+	args.total_req_count = 0;
+	args.req_per_sec = 0;
+	gettimeofday(&(args.prev_req_time), NULL);
+
 	if (pthread_create(&dpu_master_thread, NULL, dpu_uncompress, &args) != 0) {
 		fprintf(stderr, "Failed to create dpu_decompress pthreads\n");
 		return -1;
@@ -411,7 +420,7 @@ void pim_deinit(void) {
 }
 
 int pim_decompress(const char *compressed, size_t compressed_length, char *uncompressed) {
-	struct timeval req_time;
+	struct timeval cur_req;
 	// Set up in the input and output buffers
 	host_buffer_context_t input = {
 		.buffer = (char *)compressed,
@@ -440,7 +449,6 @@ int pim_decompress(const char *compressed, size_t compressed_length, char *uncom
 	};	
 	
 	pthread_mutex_lock(&mutex);
-
 	// Wait until there is space to take in more requests
 	while (args.req_count == total_request_slots) {
 		pthread_cond_wait(&caller_cond, &mutex);
@@ -448,17 +456,26 @@ int pim_decompress(const char *compressed, size_t compressed_length, char *uncom
 	
 	args.caller_args[args.req_head] = &m_args;
 	args.req_head = (args.req_head + 1) % total_request_slots;
-	gettimeofday(&first, NULL);
+	gettimeofday(&cur_req, NULL);
 	args.req_count++;
-	prinft("another request added at %f", first);
+	args.total_req_count++;
+	args.req_per_sec++;
+	double time_diff = timediff(&(args.prev_req_time),&cur_req);
+	if (time_diff > 1.0) {
+		args.prev_req_time = cur_req;
+		printf("%f %d %d\n",time_diff, args.req_per_sec,args.total_req_count);
+		args.req_per_sec = 0;
+	}
+	//printf("another request added at %ld\n", req_time.tv_usec);
 	args.req_waiting++;
 	pthread_cond_broadcast(&dpu_cond);
 
+	//printf("waiting for data to be processed\n");
 	// Wait for request to be processed
 	while (m_args.data_ready != 0) {
 		pthread_cond_wait(&caller_cond, &mutex);
 	}
-
+	//printf("data processed\n");
 	pthread_mutex_unlock(&mutex);
 	return m_args.retval;
 }
