@@ -196,29 +196,21 @@ static void load_rank(struct dpu_set_t *dpu_rank, master_args_t *args) {
  */
 static void unload_rank(struct dpu_set_t *dpu_rank, master_args_t *args) {
 	struct dpu_set_t dpu;
+	uint32_t output_length = 0;
 	for (int i = 0; i < NR_TASKLETS; i++) {
-		uint32_t max_output_length = 0;
-		uint32_t total_dpu_count = 0;
-		DPU_FOREACH(*dpu_rank, dpu) {
-			// Get the output length
-			uint32_t output_length = 0;
-			DPU_ASSERT(dpu_copy_from(dpu, "output_length", i * sizeof(uint32_t), &output_length, sizeof(uint32_t)));
-			if (output_length == 0)
-				break;
-			total_dpu_count++;
-		}
-
 		// Get the decompressed buffer
 		uint32_t dpu_count = 0;
 		DPU_FOREACH(*dpu_rank, dpu) {
-			if (dpu_count == total_dpu_count)
+			output_length = 0;
+			DPU_ASSERT(dpu_copy_from(dpu, "output_length", i * sizeof(uint32_t), &output_length, sizeof(uint32_t)));
+			if (output_length == 0)
 				break;
 			
 			// Get the request index
 			uint32_t req_idx = 0;
 			DPU_ASSERT(dpu_copy_from(dpu, "req_idx", i * sizeof(uint32_t), &req_idx, sizeof(uint32_t)));
 
-			// TODO fix this in case the ranks don't complete out of order
+			// TODO fix this in case the ranks complete out of order
 			if (req_idx == args->req_tail) {
 				args->req_count--;
 				args->req_tail = (args->req_tail + 1) % total_request_slots;
@@ -234,7 +226,6 @@ static void unload_rank(struct dpu_set_t *dpu_rank, master_args_t *args) {
 		}
 
 		DPU_ASSERT(dpu_push_xfer(*dpu_rank, DPU_XFER_FROM_DPU, "output_buffer", i * MAX_OUTPUT_SIZE, OUTPUT_SIZE, DPU_XFER_DEFAULT));
-
 	}
 }
 
