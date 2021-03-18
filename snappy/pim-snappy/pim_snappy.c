@@ -132,7 +132,7 @@ static void load_rank(struct dpu_set_t *dpu_rank, master_args_t *args) {
 
 	// Zero out the rank
 	uint32_t zero[NR_TASKLETS];
-	memset(zero, 0, NR_TASKLETS * sizeof(uint32_t))
+	memset(zero, 0, NR_TASKLETS * sizeof(uint32_t));
 	printf("LOAD 0\n");
 	DPU_ASSERT(dpu_copy_to(*dpu_rank, "input_length", 0, zero, NR_TASKLETS * sizeof(uint32_t)));
 	printf("LOAD 1\n");
