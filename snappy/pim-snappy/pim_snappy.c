@@ -283,11 +283,13 @@ static void * dpu_uncompress(void *arg) {
 		// If any previously dispatched requests are done, read back the data
 		uint32_t rank_id = 0;
 		struct dpu_set_t dpu_rank;
+		printf("Handler1\n");
 		DPU_RANK_FOREACH(dpus, dpu_rank) {
 			if (ranks_dispatched & (1 << rank_id)) {
 				if (free_ranks & (1 << rank_id)) {
 					pthread_mutex_lock(&mutex);
 					unload_rank(&dpu_rank, args);
+					printf("Handler2\n");
 					pthread_mutex_unlock(&mutex);
 			
 					ranks_dispatched &= ~(1 << rank_id);
@@ -298,13 +300,14 @@ static void * dpu_uncompress(void *arg) {
 			}
 			rank_id++;
 		}
-
+		printf("Handler3\n");
 		// Dispatch all the requests we currently have
 		rank_id = 0;	
 		if (send_req) {
 			DPU_RANK_FOREACH(dpus, dpu_rank) {
 				if ((free_ranks & (1 << rank_id)) && args->req_waiting) {
 					pthread_mutex_lock(&mutex);
+					printf("Handler4\n");
 					load_rank(&dpu_rank, args); 
 					pthread_mutex_unlock(&mutex);
 
@@ -313,6 +316,7 @@ static void * dpu_uncompress(void *arg) {
 				rank_id++;
 			}
 		}
+		printf("Handler5\n");
 	}	
 
 	return NULL;
