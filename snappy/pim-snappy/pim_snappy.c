@@ -308,7 +308,8 @@ static void * dpu_uncompress(void *arg) {
 				if ((free_ranks & (1 << rank_id)) && args->req_waiting) {
 					pthread_mutex_lock(&mutex);
 					printf("Handler4\n");
-					load_rank(&dpu_rank, args); 
+					load_rank(&dpu_rank, args);
+					printf("Handler4.2\n");
 					pthread_mutex_unlock(&mutex);
 
 					ranks_dispatched |= (1 << rank_id);
