@@ -200,32 +200,35 @@ static void unload_rank(struct dpu_set_t *dpu_rank, master_args_t *args) {
 	for (int i = 0; i < NR_TASKLETS; i++) {
 		// Get the decompressed buffer
 		uint32_t dpu_count = 0;
+		printf("1\n");
 		DPU_FOREACH(*dpu_rank, dpu) {
 			output_length = 0;
 			DPU_ASSERT(dpu_copy_from(dpu, "output_length", i * sizeof(uint32_t), &output_length, sizeof(uint32_t)));
 			if (output_length == 0)
 				break;
-			
+			printf("2\n");
 			// Get the request index
 			uint32_t req_idx = 0;
 			DPU_ASSERT(dpu_copy_from(dpu, "req_idx", i * sizeof(uint32_t), &req_idx, sizeof(uint32_t)));
-
+			printf("3\n");
 			// TODO fix this in case the ranks complete out of order
 			if (req_idx == args->req_tail) {
 				args->req_count--;
 				args->req_tail = (args->req_tail + 1) % total_request_slots;
 			}
-
+			printf("4\n");
 			// Get the return value
 			DPU_ASSERT(dpu_copy_from(dpu, "retval", i * sizeof(uint32_t), &(args->caller_args[req_idx]->retval), sizeof(uint32_t)));
 			args->caller_args[req_idx]->data_ready = 0;
-
+			printf("5\n");
 			// Set up the transfer
 			DPU_ASSERT(dpu_prepare_xfer(dpu, (void *)args->caller_args[req_idx]->output->curr));
 			dpu_count++;
+			printf("6\n");
 		}
-
+		printf("7\n");
 		DPU_ASSERT(dpu_push_xfer(*dpu_rank, DPU_XFER_FROM_DPU, "output_buffer", i * MAX_OUTPUT_SIZE, OUTPUT_SIZE, DPU_XFER_DEFAULT));
+		printf("8\n");
 	}
 }
 
