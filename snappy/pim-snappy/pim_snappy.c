@@ -7,10 +7,12 @@
 #include <getopt.h>
 #include <pthread.h>
 #include <sys/time.h>
+#include <unistd.h>
 
 #include <dpu.h>
 #include <dpu_memory.h>
 #include <dpu_log.h>
+#include <dpu_management.h>
 
 #include "pim_snappy.h"
 #include "PIM-common/common/include/common.h"
@@ -24,6 +26,11 @@
 #define MAX_INPUT_SIZE (256 * 1024)
 #define MAX_OUTPUT_SIZE (512 * 1024)
 #define OUTPUT_SIZE (256 * 1024)
+
+// to extract components from dpu_id_t
+#define DPU_ID_RANK(_x) ((_x >> 16) & 0xFF)
+#define DPU_ID_SLICE(_x) ((_x >> 8) & 0xFF)
+#define DPU_ID_DPU(_x) ((_x) & 0xFF)
 
 // Buffer context struct for input and output buffers on host
 typedef struct host_buffer_context
@@ -100,7 +107,7 @@ static inline bool read_varint32(struct host_buffer_context *input, uint32_t *va
  *                    currently available
  */
 static void get_free_ranks(uint32_t* free_ranks) {
-    struct dpu_set_t dpu_rank;
+    struct dpu_set_t dpu_rank, dpu;
 	uint32_t rank_id = 0;
 	
 	DPU_RANK_FOREACH(dpus, dpu_rank) {
@@ -109,6 +116,23 @@ static void get_free_ranks(uint32_t* free_ranks) {
 		// Check if any rank is free
 		dpu_status(dpu_rank, &done, &fault);
 		if (fault) {
+			bool dpu_fault = 0;
+			printf("rank %u fault - abort!\n", rank_id);
+
+			// try to find which DPU caused the fault
+			DPU_FOREACH(dpu_rank, dpu)
+			{
+				if (dpu_fault)
+				{
+					dpu_id_t id = dpu_get_id(dpu.dpu);
+					fprintf(stderr, "[%u:%u:%u] at fault\n", DPU_ID_RANK(id), DPU_ID_SLICE(id), DPU_ID_DPU(id));
+#ifdef DEBUG_DPU
+					fprintf(stderr, "Halting for debug");
+					while (1)
+						usleep(100000);
+#endif // DEBUG_DPU
+				}
+			}
 			fprintf(stderr, "Fault on DPU rank %d\n", rank_id);
 			// TODO: error handle
 		}
