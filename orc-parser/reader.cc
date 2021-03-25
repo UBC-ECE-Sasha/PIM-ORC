@@ -19,7 +19,7 @@ struct thread_args {
 	int thread_num;
 	char* filename;
 	uint64_t start_row_number;
-	uint64_t end_row_number
+	uint64_t end_row_number;
 	uint64_t sum;
 };
 
@@ -50,7 +50,7 @@ void *read_thread(void *arg) {
 	LongVectorBatch *first_col = dynamic_cast<LongVectorBatch *>(root->fields[0]); // Get first column
 
 	// read the rows
-	for (uint64_t row = start_row_number;  row <= end_row_number; row++) {
+	for (uint64_t row = args->start_row_number;  row <= args->end_row_number; row++) {
 		if (!rowReader->next(*batch))
 			break;
 		
@@ -105,6 +105,8 @@ int main(int argc, char *argv[]) {
 	}
 
 	uint64_t active_threads = total_num_rows / ROWS_PER_THREAD;
+	if (total_num_rows % ROWS_PER_THREAD != 0)
+		active_threads ++;
 
 	struct thread_args *thread_args = (struct thread_args *)malloc(sizeof(struct thread_args) * active_threads);
 	pthread_t *threads = (pthread_t *)malloc(sizeof(pthread_t) * active_threads);
