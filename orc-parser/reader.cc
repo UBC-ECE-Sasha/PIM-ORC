@@ -11,7 +11,7 @@
 #include <iostream>
 
 #define MIN(X, Y) ((X) < (Y) ? (X) : (Y)) 
-#define ROWS_PER_THREAD 100000
+#define ROWS_PER_THREAD 2000000
 
 using namespace orc;
 
@@ -52,7 +52,6 @@ void *read_thread(void *arg) {
 
 	// read the rows
 	uint64_t row_index_nums = ROWS_PER_THREAD / batch_size;	
-	std::cout<<"readings rows :" << args->start_row_number << " to: " << args->start_row_number + row_index_nums << "\n";
 	for (uint64_t row_index = 0; row_index < row_index_nums; row_index++) {
 		if (!rowReader->next(*batch))
 			break;
@@ -113,6 +112,13 @@ int main(int argc, char *argv[]) {
 
 	struct thread_args *thread_args = (struct thread_args *)malloc(sizeof(struct thread_args) * active_threads);
 	pthread_t *threads = (pthread_t *)malloc(sizeof(pthread_t) * active_threads);
+
+	// check how many rows belong to each stripe
+	for (uint64_t i=0; i<num_stripes;i++) {
+		uint64_t row_number = reader->getStripe(i)->getNumberOfRows();
+	std::cout<<"row number for stripe "<<i<<" : "<<row_number<<"\n";
+	
+	}
 
 	std::cout << "total num rows: " << total_num_rows << "\n";
 	std::cout << "Num stripes: " << num_stripes << "\n";
