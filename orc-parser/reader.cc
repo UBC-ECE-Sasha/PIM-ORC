@@ -11,7 +11,7 @@
 #include <iostream>
 
 #define MIN(X, Y) ((X) < (Y) ? (X) : (Y)) 
-#define ROWS_PER_THREAD 1000
+#define ROWS_PER_THREAD 100000
 
 using namespace orc;
 
@@ -41,7 +41,8 @@ void *read_thread(void *arg) {
 	// Allocate the row reader	
 	RowReaderOptions rowReaderOptions;
 	ORC_UNIQUE_PTR<RowReader> rowReader = reader->createRowReader(rowReaderOptions);
-	ORC_UNIQUE_PTR<ColumnVectorBatch> batch = rowReader->createRowBatch(reader->getRowIndexStride());
+	uint64_t batch_size = reader->getRowIndexStride();
+	ORC_UNIQUE_PTR<ColumnVectorBatch> batch = rowReader->createRowBatch(batch_size);
 
 	// Seek to this thread's row
 	rowReader->seekToRow(args->start_row_number);
@@ -50,7 +51,9 @@ void *read_thread(void *arg) {
 	LongVectorBatch *first_col = dynamic_cast<LongVectorBatch *>(root->fields[0]); // Get first column
 
 	// read the rows
-	for (uint64_t row = args->start_row_number;  row <= args->end_row_number; row++) {
+	uint64_t row_index_nums = ROWS_PER_THREAD / batch_size;	
+	std::cout<<"readings rows :" << args->start_row_number << " to: " << args->start_row_number + row_index_nums << "\n";
+	for (uint64_t row_index = 0; row_index < row_index_nums; row_index++) {
 		if (!rowReader->next(*batch))
 			break;
 		
@@ -111,6 +114,7 @@ int main(int argc, char *argv[]) {
 	struct thread_args *thread_args = (struct thread_args *)malloc(sizeof(struct thread_args) * active_threads);
 	pthread_t *threads = (pthread_t *)malloc(sizeof(pthread_t) * active_threads);
 
+	std::cout << "total num rows: " << total_num_rows << "\n";
 	std::cout << "Num stripes: " << num_stripes << "\n";
 	std::cout << "Num threads: " << active_threads << "\n";
 	
@@ -121,10 +125,12 @@ int main(int argc, char *argv[]) {
 		args->thread_num = i;
 		args->filename = input_file;
 		args->start_row_number = start_row_number;
+		args->start_row_number = start_row_number;
 		args->end_row_number = start_row_number + ROWS_PER_THREAD - 1;
 		args->sum = 0;
 
 		start_row_number = start_row_number + ROWS_PER_THREAD;
+		std::cout << "thread " << i << " start rn: " << args->start_row_number << " end row number: " << args->end_row_number << "\n";
 	}
 
 	// Start each thread
