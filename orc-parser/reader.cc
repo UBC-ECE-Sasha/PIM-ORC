@@ -11,7 +11,6 @@
 #include <iostream>
 
 #define MIN(X, Y) ((X) < (Y) ? (X) : (Y)) 
-#define ROWS_PER_THREAD 200000
 
 using namespace orc;
 
@@ -70,7 +69,7 @@ void *read_thread(void *arg) {
 int main(int argc, char *argv[]) {
 	int opt;
 	char *input_file = NULL;
-	uint64_t num_threads = 1;
+	uint64_t rows_per_thread = 10000;
 
 	while ((opt = getopt(argc, argv, "f:t:")) != -1) {
 		switch(opt) {
@@ -78,7 +77,7 @@ int main(int argc, char *argv[]) {
 				input_file = optarg;
 				break;
 			case 't':
-				num_threads = atoi(optarg);
+				rows_per_thread = rows_per_thread * atoi(optarg);
 				break;
 			default:
 				std::cout << "Unknown Option: " << optopt << "\n";
@@ -106,8 +105,8 @@ int main(int argc, char *argv[]) {
 	uint64_t active_threads = 0;
 	for (uint64_t s = 0; s < num_stripes; s++) {
 		uint64_t num_rows = reader->getStripe(s)->getNumberOfRows();
-		active_threads += num_rows/ ROWS_PER_THREAD;
-		if (num_rows % ROWS_PER_THREAD != 0)
+		active_threads += num_rows/ rows_per_thread;
+		if (num_rows % rows_per_thread != 0)
 			// each row should only cover one stripe, no thread with overlapping stripe
 			active_threads ++;
 	}
@@ -130,10 +129,10 @@ int main(int argc, char *argv[]) {
 			args->filename = input_file;
 			args->start_row_number = start_row_number;
 			args->sum = 0;
-			if (row_number >= ROWS_PER_THREAD){
-				args->num_rows = ROWS_PER_THREAD;
-				start_row_number += ROWS_PER_THREAD;
-				row_number -= ROWS_PER_THREAD;
+			if (row_number >= rows_per_thread){
+				args->num_rows = rows_per_thread;
+				start_row_number += rows_per_thread;
+				row_number -= rows_per_thread;
 			} else {
 				args->num_rows = row_number;
 				start_row_number += row_number;
