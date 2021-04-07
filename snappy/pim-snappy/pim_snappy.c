@@ -284,6 +284,7 @@ static void * dpu_uncompress(void *arg) {
 
 	struct timespec time_to_wait;
 	struct timeval first, second;
+	struct timeval load,unload;
 	uint32_t ranks_dispatched = 0;
 	while (args->stop_thread != 1) { 
 		pthread_mutex_lock(&mutex);
@@ -317,7 +318,8 @@ static void * dpu_uncompress(void *arg) {
 				if (free_ranks & (1 << rank_id)) {
 					pthread_mutex_lock(&mutex);
 					unload_rank(&dpu_rank, args);
-					// printf("Handler2\n");
+					gettimeofday(&unload, NULL);
+					printf("unloading %ld %lf\n", rank_id, timediff(&load, &unload));
 					pthread_mutex_unlock(&mutex);
 			
 					ranks_dispatched &= ~(1 << rank_id);
@@ -335,9 +337,9 @@ static void * dpu_uncompress(void *arg) {
 			DPU_RANK_FOREACH(dpus, dpu_rank) {
 				if ((free_ranks & (1 << rank_id)) && args->req_waiting) {
 					pthread_mutex_lock(&mutex);
-					// printf("Handler4\n");
+					gettimeofday(&load, NULL);
 					load_rank(&dpu_rank, args);
-					// printf("Handler4.2\n");
+					printf("load %ld\n", rank_id);
 					pthread_mutex_unlock(&mutex);
 
 					ranks_dispatched |= (1 << rank_id);
@@ -345,7 +347,6 @@ static void * dpu_uncompress(void *arg) {
 				rank_id++;
 			}
 		}
-		// printf("Handler5\n");
 	}	
 
 	return NULL;
