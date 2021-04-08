@@ -436,11 +436,19 @@ void pim_deinit(void) {
 	// get DPU stats 
 	struct dpu_set_t dpu_rank; 
 	uint32_t rank_id = 0;
+	double total_dpu_perf = 0
 	DPU_RANK_FOREACH(dpus, dpu_rank) {
 		host_rank_context* rank_ctx = &ctx[rank_id];
-		printf("total number of seconds of operation of dpu 0 in rank %d: %lf\n", rank_id, double(rank_ctx->dpus[0].perf)/);
+		double average_perf_rank = 0;
+		for (uint32_t dpu_id; dpu_id < dpus_per_rank; dpu_id ++)
+		{
+			average_perf_rank += (double)rank_ctx->dpus[i].perf/DPU_CLOCK_CYCLE;
+		}
+		printf("average runtime of all dpus in rank %d: %lf\n", rank_id, average_perf_rank/dpus_per_rank);
+		total_dpu_perf += average_perf_rank/dpus_per_rank;
 		rank_id++;
 	}
+	printf("total runtime of all ranks %lf\n", total_dpu_perf);
 	// Signal to terminate the dpu master thread
 	pthread_mutex_lock(&mutex);
 	args.stop_thread = 1;
