@@ -32,6 +32,8 @@
 #define DPU_ID_SLICE(_x) ((_x >> 8) & 0xFF)
 #define DPU_ID_DPU(_x) ((_x) & 0xFF)
 
+#define MAX(a,b) (((a)>(b))?(a):(b))
+
 #define DPU_CLOCK_CYCLE 266000000// TODO: confirm this
 
 // Buffer context struct for input and output buffers on host
@@ -439,13 +441,13 @@ void pim_deinit(void) {
 	double total_dpu_perf = 0
 	DPU_RANK_FOREACH(dpus, dpu_rank) {
 		host_rank_context* rank_ctx = &ctx[rank_id];
-		double average_perf_rank = 0;
+		double max_perf_rank = 0;
 		for (uint32_t dpu_id; dpu_id < dpus_per_rank; dpu_id ++)
 		{
-			average_perf_rank += (double)rank_ctx->dpus[i].perf/DPU_CLOCK_CYCLE;
+			max_perf_rank = MAX((double)rank_ctx->dpus[i].perf/DPU_CLOCK_CYCLE, max_perf_rank);
 		}
-		printf("average runtime of all dpus in rank %d: %lf\n", rank_id, average_perf_rank/dpus_per_rank);
-		total_dpu_perf += average_perf_rank/dpus_per_rank;
+		printf("max runtime of all dpus in rank %d: %lf\n", rank_id, max_perf_rank);
+		total_dpu_perf += max_perf_rank;
 		rank_id++;
 	}
 	printf("total runtime of all ranks %lf\n", total_dpu_perf);
