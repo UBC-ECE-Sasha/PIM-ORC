@@ -16,6 +16,7 @@ __host uint32_t req_idx[NR_TASKLETS];
 __host uint32_t input_length[NR_TASKLETS];
 __host uint32_t output_length[NR_TASKLETS];
 __host uint32_t retval[NR_TASKLETS];
+__host uint32_t perf;
 
 // MRAM buffers
 uint8_t __mram_noinit input_buffer[NR_TASKLETS][MAX_INPUT_SIZE];
@@ -73,6 +74,7 @@ int main()
 #else
 	printf("Tasklet %d: %ld instructions, %d bytes\n", idx, perfcounter_get(), output.length);
 #endif	
+	perf = perfcounter_get();
 	retval[idx] = 1;
 	return 0;
 }
