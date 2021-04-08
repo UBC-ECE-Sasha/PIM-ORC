@@ -72,6 +72,7 @@ static pthread_cond_t dpu_cond;
 static pthread_t dpu_master_thread;
 static master_args_t args;
 static uint32_t total_request_slots = 0;
+static double total_rank_time = 0; // TESTING, DELETE
 
 /**
  * Attempt to read a varint from the input buffer. The format of a varint
@@ -312,14 +313,15 @@ static void * dpu_uncompress(void *arg) {
 		// If any previously dispatched requests are done, read back the data
 		uint32_t rank_id = 0;
 		struct dpu_set_t dpu_rank;
-		// printf("Handler1\n");
 		DPU_RANK_FOREACH(dpus, dpu_rank) {
 			if (ranks_dispatched & (1 << rank_id)) {
 				if (free_ranks & (1 << rank_id)) {
 					pthread_mutex_lock(&mutex);
 					unload_rank(&dpu_rank, args);
 					gettimeofday(&unload, NULL);
-					printf("unloading %ld %lf\n", rank_id, timediff(&load, &unload));
+					// printf("unloading %ld %lf\n", rank_id, timediff(&load, &unload));
+					total_rank_time += timediff(&load, &unload);
+					printf("total_rank time so far %f\n", total_rank_time);
 					pthread_mutex_unlock(&mutex);
 			
 					ranks_dispatched &= ~(1 << rank_id);
@@ -330,7 +332,6 @@ static void * dpu_uncompress(void *arg) {
 			}
 			rank_id++;
 		}
-		// printf("Handler3\n");
 		// Dispatch all the requests we currently have
 		rank_id = 0;	
 		if (send_req) {
@@ -339,7 +340,7 @@ static void * dpu_uncompress(void *arg) {
 					pthread_mutex_lock(&mutex);
 					gettimeofday(&load, NULL);
 					load_rank(&dpu_rank, args);
-					printf("load %ld\n", rank_id);
+					// printf("load %ld\n", rank_id);
 					pthread_mutex_unlock(&mutex);
 
 					ranks_dispatched |= (1 << rank_id);
