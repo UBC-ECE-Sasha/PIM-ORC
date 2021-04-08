@@ -332,7 +332,7 @@ static void * dpu_uncompress(void *arg) {
 				if (free_ranks & (1 << rank_id)) {
 					pthread_mutex_lock(&mutex);
 					// get rank_context
-					struct host_rank_context rank_ctx = ctx[rank_id];
+					struct* host_rank_context rank_ctx = &ctx[rank_id];
 					unload_rank(&dpu_rank, args, rank_ctx);
 					gettimeofday(&unload, NULL);
 					// printf("unloading %ld %lf\n", rank_id, timediff(&load, &unload));
@@ -402,7 +402,7 @@ int pim_init(void) {
 	DPU_RANK_FOREACH(dpus, dpu_rank) {
 		struct host_dpu_descriptor *rank_input;
 		rank_input = calloc(dpus_per_rank, sizeof(struct host_dpu_descriptor));
-		*ctx[rank_id] = rank_input;
+		ctx[rank_id] = &rank_input;
 		rank_id++;
 	}
 	
