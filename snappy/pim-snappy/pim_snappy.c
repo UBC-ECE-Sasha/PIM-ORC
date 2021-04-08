@@ -242,7 +242,6 @@ static void load_rank(struct dpu_set_t *dpu_rank, master_args_t *args) {
 static void unload_rank(struct dpu_set_t *dpu_rank, master_args_t *args, struct host_rank_context *rank_ctx) {
 	struct dpu_set_t dpu;
 	uint8_t dpu_id;
-	dpu_error_t err;
 
 	uint32_t output_length = 0;
 	for (int i = 0; i < NR_TASKLETS; i++) {
@@ -266,7 +265,7 @@ static void unload_rank(struct dpu_set_t *dpu_rank, master_args_t *args, struct 
 			DPU_ASSERT(dpu_copy_from(dpu, "retval", i * sizeof(uint32_t), &(args->caller_args[req_idx]->retval), sizeof(uint32_t)));
 			args->caller_args[req_idx]->data_ready = 0;
 			// Get the performance metric
-			DPU_ASSERT(dpu_copy_from(dpu, "perf", i * sizeof(uint32_t), perf, sizeof(uint32_t)));
+			DPU_ASSERT(dpu_copy_from(dpu, "perf", i * sizeof(uint32_t), &perf, sizeof(uint32_t)));
 			rank_ctx->dpus[dpu_id].perf += perf; // cumulative performance
 			// Set up the transfer
 			DPU_ASSERT(dpu_prepare_xfer(dpu, (void *)args->caller_args[req_idx]->output->curr));
@@ -333,7 +332,7 @@ static void * dpu_uncompress(void *arg) {
 				if (free_ranks & (1 << rank_id)) {
 					pthread_mutex_lock(&mutex);
 					// get rank_context
-					rank_ctx = ctx[rank_id];
+					struct host_rank_context rank_ctx = ctx[rank_id];
 					unload_rank(&dpu_rank, args, rank_ctx);
 					gettimeofday(&unload, NULL);
 					// printf("unloading %ld %lf\n", rank_id, timediff(&load, &unload));
@@ -397,13 +396,13 @@ int pim_init(void) {
 	args.caller_args = (caller_args_t **)malloc(sizeof(caller_args_t *) * total_request_slots);
 
 	// allocate space for DPU descriptors for all ranks
-	ctx = calloc(rank_count, sizeof(host_rank_context));
+	ctx = calloc(num_ranks, sizeof(host_rank_context));
 	// allocate space for dpu descriptors for all dpus in every rank
 	uint32_t rank_id = 0;
 	DPU_RANK_FOREACH(dpus, dpu_rank) {
 		struct host_dpu_descriptor *rank_input;
 		rank_input = calloc(dpus_per_rank, sizeof(struct host_dpu_descriptor));
-		ctx[rank_id] = rank_input;
+		*ctx[rank_id] = rank_input;
 		rank_id++;
 	}
 	
@@ -435,10 +434,8 @@ void pim_deinit(void) {
 	// get DPU stats 
 	struct dpu_set_t dpu_rank; 
 	uint32_t rank_id = 0;
-	uint32_t num_cycles = 0;
 	DPU_RANK_FOREACH(dpus, dpu_rank) {
-		uint32_t size = sizeof(uint32_t);
-		host_rank_context rank_ctx = &ctx[rank_id];
+		host_rank_context* rank_ctx = &ctx[rank_id];
 		printf("total number of cycles of dpu 0 in rank %d: %d", rank_id, rank_ctx->dpus[0].perf);
 		rank_id++;
 	}
