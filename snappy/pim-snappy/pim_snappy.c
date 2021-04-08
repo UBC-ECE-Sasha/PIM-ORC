@@ -32,6 +32,8 @@
 #define DPU_ID_SLICE(_x) ((_x >> 8) & 0xFF)
 #define DPU_ID_DPU(_x) ((_x) & 0xFF)
 
+#define DPU_CLOCK_CYCLE 266000000// TODO: confirm this
+
 // Buffer context struct for input and output buffers on host
 typedef struct host_buffer_context
 {
@@ -426,7 +428,7 @@ void pim_deinit(void) {
 	uint32_t rank_id = 0;
 	DPU_RANK_FOREACH(dpus, dpu_rank) {
 		host_rank_context* rank_ctx = &ctx[rank_id];
-		printf("total number of cycles of dpu 0 in rank %d: %d", rank_id, rank_ctx->dpus[0].perf);
+		printf("total number of seconds of operation of dpu 0 in rank %d: %lf\n", rank_id, double(rank_ctx->dpus[0].perf)/);
 		rank_id++;
 	}
 	// Signal to terminate the dpu master thread
