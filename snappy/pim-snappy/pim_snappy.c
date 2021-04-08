@@ -72,6 +72,7 @@ static pthread_cond_t dpu_cond;
 static pthread_t dpu_master_thread;
 static master_args_t args;
 static uint32_t total_request_slots = 0;
+static double total_rank_time = 0; // TESTING, DELETE
 
 /**
  * Attempt to read a varint from the input buffer. The format of a varint
