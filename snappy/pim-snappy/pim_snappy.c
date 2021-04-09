@@ -337,9 +337,7 @@ static void * dpu_uncompress(void *arg) {
 					host_rank_context* rank_ctx = &ctx[rank_id];
 					unload_rank(&dpu_rank, args, rank_ctx);
 					gettimeofday(&unload, NULL);
-					// printf("unloading %ld %lf\n", rank_id, timediff(&load, &unload));
 					total_rank_time += timediff(&load, &unload);
-					printf("total_rank time so far %f\n", total_rank_time);
 					pthread_mutex_unlock(&mutex);
 			
 					ranks_dispatched &= ~(1 << rank_id);
@@ -436,11 +434,18 @@ void pim_deinit(void) {
 	// get DPU stats 
 	struct dpu_set_t dpu_rank; 
 	uint32_t rank_id = 0;
+	double total_dpu_perf = 0.0;
 	DPU_RANK_FOREACH(dpus, dpu_rank) {
 		host_rank_context* rank_ctx = &ctx[rank_id];
-		printf("total number of seconds of operation of dpu 0 in rank %d: %lf\n", rank_id, double(rank_ctx->dpus[0].perf)/);
+		double max_perf_rank = 0.0;
+		for (uint32_t dpu_id=0; dpu_id < dpus_per_rank; dpu_id++) {
+			max_perf_rank = MAX((double)rank_ctx->dpus[dpu_id].perf/DPU_CLOCK_CYCLE, max_perf_rank);
+		}
+		printf("max runtime of all DPUs in rank %d: %lf\n", rank_id, max_perf_rank);
+		total_dpu_perf += max_perf_rank;
 		rank_id++;
 	}
+	printf("total runtime of all ranks %lf\n", total_dpu_perf);
 	// Signal to terminate the dpu master thread
 	pthread_mutex_lock(&mutex);
 	args.stop_thread = 1;
