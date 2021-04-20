@@ -85,7 +85,6 @@ static pthread_cond_t dpu_cond;
 static pthread_t dpu_master_thread;
 static master_args_t args;
 static uint32_t total_request_slots = 0;
-static double total_rank_time = 0; // TESTING, DELETE
 
 // Performance metrics
 static struct host_rank_context *ctx;
@@ -294,7 +293,6 @@ static void * dpu_uncompress(void *arg) {
 
 	struct timespec time_to_wait;
 	struct timeval first, second;
-	struct timeval load,unload;
 	uint32_t ranks_dispatched = 0;
 	while (args->stop_thread != 1) { 
 		pthread_mutex_lock(&mutex);
@@ -329,8 +327,6 @@ static void * dpu_uncompress(void *arg) {
 					// get rank_context
 					host_rank_context* rank_ctx = &ctx[rank_id];
 					unload_rank(&dpu_rank, args, rank_ctx);
-					gettimeofday(&unload, NULL);
-					total_rank_time += timediff(&load, &unload);
 					pthread_mutex_unlock(&mutex);
 			
 					ranks_dispatched &= ~(1 << rank_id);
