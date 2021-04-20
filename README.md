@@ -10,12 +10,13 @@ So if you wanted to use the DPUs with 5 tasklets, the command would be: `make US
 
 Note that due a bug in the build process (Issue #1), the build will fail the first time around if using PIM. Simply run the `make` command twice to get the build to succeed. 
 
-If remaking with a different NR_TASKLETS, make sure to run `make clean` instead of `make` to rebuild the dpu binary file.
+If remaking with a different NR_TASKLETS, make sure to run `make clean` or simply delete `decompress.dpu` `make` to make sure the binary file is rebuilt with the new number of tasklets.
 
 ## Run
 To execute the program, run the following command:
 ```
-./reader -f [ORC input test file] -t [Maximum number of threads to use in the ORC reader, default is 1]
+./reader -f [ORC input test file] -t [number of rows assigned to thread / 10000]
 ```
+10000 is the size of the stride of the snappy reader. 
 The program output should look something like this:
 <img width="717" alt="orc-parser-output" src="https://user-images.githubusercontent.com/25714353/103724599-90008880-4f89-11eb-936a-2e2ed499f5e2.png">

@@ -32,6 +32,8 @@
 #define DPU_ID_SLICE(_x) ((_x >> 8) & 0xFF)
 #define DPU_ID_DPU(_x) ((_x) & 0xFF)
 
+#define DPU_CLOCK_CYCLE 266000000// TODO: confirm this
+
 // Buffer context struct for input and output buffers on host
 typedef struct host_buffer_context
 {
@@ -59,8 +61,19 @@ typedef struct master_args {
 	caller_args_t **caller_args;    // Request buffer
 } master_args_t;
 
+// Descriptors for DPUs for performance metrics
+ typedef struct host_dpu_descriptor {
+ 	uint32_t perf; // value from the DPU's performance counter
+ } host_dpu_descriptor;
+
+ // Rank context struct for performance metrics
+ typedef struct host_rank_context {
+ 	uint32_t dpu_count; // how many dpus are filled in the descriptor array
+ 	host_dpu_descriptor *dpus; // the descriptors for the dpus in this rank
+ } host_rank_context;
+
 // Stores number of allocated DPUs
-static struct dpu_set_t dpus;
+static struct dpu_set_t dpus, dpu_rank;
 static uint32_t num_ranks = 0;
 static uint32_t num_dpus = 0;
 
@@ -72,6 +85,11 @@ static pthread_cond_t dpu_cond;
 static pthread_t dpu_master_thread;
 static master_args_t args;
 static uint32_t total_request_slots = 0;
+
+// Performance metrics
+static struct host_rank_context *ctx;
+static uint32_t dpus_per_rank;
+
 
 /**
  * Attempt to read a varint from the input buffer. The format of a varint
@@ -215,13 +233,16 @@ static void load_rank(struct dpu_set_t *dpu_rank, master_args_t *args) {
  * @param dpu_rank: pointer to DPU rank handle to unload
  * @param args: pointer to the DPU handler thread args
  */
-static void unload_rank(struct dpu_set_t *dpu_rank, master_args_t *args) {
+static void unload_rank(struct dpu_set_t *dpu_rank, master_args_t *args, struct host_rank_context *rank_ctx) {
 	struct dpu_set_t dpu;
+	uint8_t dpu_id;
+
 	uint32_t output_length = 0;
 	for (int i = 0; i < NR_TASKLETS; i++) {
 		// Get the decompressed buffer
 		uint32_t dpu_count = 0;
-		DPU_FOREACH(*dpu_rank, dpu) {
+		uint32_t perf = 0;
+		DPU_FOREACH(*dpu_rank, dpu, dpu_id) {
 			output_length = 0;
 			DPU_ASSERT(dpu_copy_from(dpu, "output_length", i * sizeof(uint32_t), &output_length, sizeof(uint32_t)));
 			if (output_length == 0)
@@ -237,6 +258,9 @@ static void unload_rank(struct dpu_set_t *dpu_rank, master_args_t *args) {
 			// Get the return value
 			DPU_ASSERT(dpu_copy_from(dpu, "retval", i * sizeof(uint32_t), &(args->caller_args[req_idx]->retval), sizeof(uint32_t)));
 			args->caller_args[req_idx]->data_ready = 0;
+			// Get the performance metric
+			DPU_ASSERT(dpu_copy_from(dpu, "perf", i * sizeof(uint32_t), &perf, sizeof(uint32_t)));
+			rank_ctx->dpus[dpu_id].perf += perf; // cumulative performance
 			// Set up the transfer
 			DPU_ASSERT(dpu_prepare_xfer(dpu, (void *)args->caller_args[req_idx]->output->curr));
 			dpu_count++;
@@ -300,7 +324,9 @@ static void * dpu_uncompress(void *arg) {
 			if (ranks_dispatched & (1 << rank_id)) {
 				if (free_ranks & (1 << rank_id)) {
 					pthread_mutex_lock(&mutex);
-					unload_rank(&dpu_rank, args);
+					// get rank_context
+					host_rank_context* rank_ctx = &ctx[rank_id];
+					unload_rank(&dpu_rank, args, rank_ctx);
 					pthread_mutex_unlock(&mutex);
 			
 					ranks_dispatched &= ~(1 << rank_id);
@@ -341,6 +367,7 @@ int pim_init(void) {
 	
 	dpu_get_nr_ranks(dpus, &num_ranks);
 	dpu_get_nr_dpus(dpus, &num_dpus);
+	dpus_per_rank = num_dpus / num_ranks;
 	total_request_slots = num_dpus * NR_TASKLETS;
 
 	// Load the program to all DPUs
@@ -353,6 +380,17 @@ int pim_init(void) {
 	args.req_count = 0;
 	args.req_waiting = 0;
 	args.caller_args = (caller_args_t **)malloc(sizeof(caller_args_t *) * total_request_slots);
+
+	// allocate space for DPU descriptors for all ranks
+	ctx = calloc(num_ranks, sizeof(host_rank_context));
+	// allocate space for dpu descriptors for all dpus in every rank
+	uint32_t rank_id = 0;
+	DPU_RANK_FOREACH(dpus, dpu_rank) {
+		struct host_dpu_descriptor *rank_input;
+		rank_input = calloc(dpus_per_rank, sizeof(struct host_dpu_descriptor));
+		ctx[rank_id].dpus = rank_input;
+		rank_id++;
+	}
 	
 	if (pthread_create(&dpu_master_thread, NULL, dpu_uncompress, &args) != 0) {
 		fprintf(stderr, "Failed to create dpu_decompress pthreads\n");
@@ -379,6 +417,22 @@ int pim_init(void) {
 }
 
 void pim_deinit(void) {
+#ifdef STATISTICS
+	// get DPU stats 
+	uint32_t rank_id = 0;
+	double total_dpu_perf = 0.0;
+	DPU_RANK_FOREACH(dpus, dpu_rank) {
+		host_rank_context* rank_ctx = &ctx[rank_id];
+		double max_perf_rank = 0.0;
+		for (uint32_t dpu_id=0; dpu_id < dpus_per_rank; dpu_id++) {
+			max_perf_rank = MAX((double)rank_ctx->dpus[dpu_id].perf/DPU_CLOCK_CYCLE, max_perf_rank);
+		}
+		printf("max runtime of all DPUs in rank %d: %lf\n", rank_id, max_perf_rank);
+		total_dpu_perf += max_perf_rank;
+		rank_id++;
+	}
+	printf("total runtime of all ranks %lf\n", total_dpu_perf);
+#endif
 	// Signal to terminate the dpu master thread
 	pthread_mutex_lock(&mutex);
 	args.stop_thread = 1;

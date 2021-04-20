@@ -17,9 +17,8 @@ using namespace orc;
 struct thread_args {
 	int thread_num;
 	char* filename;
-	uint64_t start_stripe;
-	uint64_t end_stripe;
 	uint64_t start_row_number;
+	uint64_t num_rows; // number of rows assigned to this thread
 	uint64_t sum;
 };
 
@@ -41,7 +40,8 @@ void *read_thread(void *arg) {
 	// Allocate the row reader	
 	RowReaderOptions rowReaderOptions;
 	ORC_UNIQUE_PTR<RowReader> rowReader = reader->createRowReader(rowReaderOptions);
-	ORC_UNIQUE_PTR<ColumnVectorBatch> batch = rowReader->createRowBatch(reader->getRowIndexStride());
+	uint64_t batch_size = reader->getRowIndexStride();
+	ORC_UNIQUE_PTR<ColumnVectorBatch> batch = rowReader->createRowBatch(batch_size);
 
 	// Seek to this thread's row
 	rowReader->seekToRow(args->start_row_number);
@@ -49,19 +49,17 @@ void *read_thread(void *arg) {
 	StructVectorBatch *root = dynamic_cast<StructVectorBatch *>(batch.get());
 	LongVectorBatch *first_col = dynamic_cast<LongVectorBatch *>(root->fields[0]); // Get first column
 
-	// Loop through and read each row	
-	for (uint64_t s = args->start_stripe; s < args->end_stripe; s++) {
-		ORC_UNIQUE_PTR<StripeStatistics> stripe_stats = reader->getStripeStatistics(s);
-		const uint64_t num_rows = stripe_stats->getNumberOfRowIndexStats(0);
-
-		for (uint64_t row = 0; row < num_rows; row++) {
-			if (!rowReader->next(*batch))
-				break;
-			
-			for (uint64_t elem = 0; elem < batch->numElements; elem++) {
-				if (first_col->notNull[elem]) {
-					args->sum += first_col->data[elem]; }
-			}
+	// read the rows
+	uint64_t row_index_nums = args->num_rows / batch_size;
+	if (args->num_rows % batch_size != 0)
+		row_index_nums ++;	
+	for (uint64_t row_index = 0; row_index < row_index_nums; row_index++) {
+		if (!rowReader->next(*batch))
+			break;
+		
+		for (uint64_t elem = 0; elem < batch->numElements; elem++) {
+			if (first_col->notNull[elem]) {
+				args->sum += first_col->data[elem]; }
 		}
 	}
 
@@ -71,7 +69,7 @@ void *read_thread(void *arg) {
 int main(int argc, char *argv[]) {
 	int opt;
 	char *input_file = NULL;
-	uint64_t num_threads = 1;
+	uint64_t rows_per_thread = 10000;
 
 	while ((opt = getopt(argc, argv, "f:t:")) != -1) {
 		switch(opt) {
@@ -79,7 +77,7 @@ int main(int argc, char *argv[]) {
 				input_file = optarg;
 				break;
 			case 't':
-				num_threads = atoi(optarg);
+				rows_per_thread = rows_per_thread * atoi(optarg);
 				break;
 			default:
 				std::cout << "Unknown Option: " << optopt << "\n";
@@ -104,41 +102,47 @@ int main(int argc, char *argv[]) {
 
 	// Get the number of stripes in the file
 	const uint64_t num_stripes = reader->getNumberOfStripes();
+	uint64_t active_threads = 0;
+	for (uint64_t s = 0; s < num_stripes; s++) {
+		uint64_t num_rows = reader->getStripe(s)->getNumberOfRows();
+		active_threads += num_rows/ rows_per_thread;
+		if (num_rows % rows_per_thread != 0)
+			// each row should only cover one stripe, no thread with overlapping stripe
+			active_threads ++;
+	}
 
-	// Don't make more threads than there stripes
-	uint64_t active_threads = MIN(num_threads, num_stripes);
 	struct thread_args *thread_args = (struct thread_args *)malloc(sizeof(struct thread_args) * active_threads);
 	pthread_t *threads = (pthread_t *)malloc(sizeof(pthread_t) * active_threads);
 
+	// check how many rows belong to each stripe
 	std::cout << "Num stripes: " << num_stripes << "\n";
 	std::cout << "Num threads: " << active_threads << "\n";
 
-	uint64_t num_stripes_per_thread = num_stripes / active_threads;
-	uint64_t leftover_stripes = num_stripes % active_threads;
-
-	// Assign work to each thread
-	uint64_t start_stripe = 0;
+	uint64_t th = 0;
 	uint64_t start_row_number = 0;
-	for (uint64_t i = 0; i < active_threads; i++) {
-		struct thread_args *args = &thread_args[i];
-		args->thread_num = i;
-		args->filename = input_file;
-
-		args->start_stripe = start_stripe;
-		args->end_stripe = start_stripe + num_stripes_per_thread;
-		if (i == (active_threads - 1)) {
-			args->end_stripe += leftover_stripes;
+	for (uint64_t i=0; i<num_stripes; i++){
+		uint64_t row_number = reader->getStripe(i)->getNumberOfRows();
+		// assign rows of only one stripe to each thread, no thread should hold rows of multiple stripes
+		while (row_number > 0) {
+			struct thread_args *args = &thread_args[th];
+			args->thread_num = th;
+			args->filename = input_file;
+			args->start_row_number = start_row_number;
+			args->sum = 0;
+			if (row_number >= rows_per_thread){
+				args->num_rows = rows_per_thread;
+				start_row_number += rows_per_thread;
+				row_number -= rows_per_thread;
+			} else {
+				args->num_rows = row_number;
+				start_row_number += row_number;
+				row_number = 0;
+			}
+			th ++;		
 		}
-
-		args->start_row_number = start_row_number;
-		args->sum = 0;
-
-		// Increment variables
-		for (uint64_t s = start_stripe; s < args->end_stripe; s++) {
-			start_row_number += reader->getStripe(s)->getNumberOfRows();
-		}
-		start_stripe += num_stripes_per_thread;
+	
 	}
+	
 
 	// Start each thread
 	for (uint64_t i = 0; i < active_threads; i++) {
