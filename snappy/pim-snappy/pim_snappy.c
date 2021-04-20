@@ -73,7 +73,7 @@ typedef struct master_args {
  } host_rank_context;
 
 // Stores number of allocated DPUs
-static struct dpu_set_t dpus;
+static struct dpu_set_t dpus, dpu_rank;
 static uint32_t num_ranks = 0;
 static uint32_t num_dpus = 0;
 
@@ -362,7 +362,7 @@ static void * dpu_uncompress(void *arg) {
 /*************************************************/
 
 int pim_init(void) {
-	struct dpu_set_t dpu_rank; 
+	//struct dpu_set_t dpu_rank; 
 	// Allocate all DPUs, then check how many were allocated
 	DPU_ASSERT(dpu_alloc(DPU_ALLOCATE_ALL, NULL, &dpus));
 	
@@ -419,7 +419,6 @@ int pim_init(void) {
 
 void pim_deinit(void) {
 	// get DPU stats 
-	struct dpu_set_t dpu_rank; 
 	uint32_t rank_id = 0;
 	double total_dpu_perf = 0.0;
 	DPU_RANK_FOREACH(dpus, dpu_rank) {
