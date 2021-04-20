@@ -362,7 +362,6 @@ static void * dpu_uncompress(void *arg) {
 /*************************************************/
 
 int pim_init(void) {
-	//struct dpu_set_t dpu_rank; 
 	// Allocate all DPUs, then check how many were allocated
 	DPU_ASSERT(dpu_alloc(DPU_ALLOCATE_ALL, NULL, &dpus));
 	
@@ -418,6 +417,7 @@ int pim_init(void) {
 }
 
 void pim_deinit(void) {
+#ifdef STATISTICS
 	// get DPU stats 
 	uint32_t rank_id = 0;
 	double total_dpu_perf = 0.0;
@@ -432,6 +432,7 @@ void pim_deinit(void) {
 		rank_id++;
 	}
 	printf("total runtime of all ranks %lf\n", total_dpu_perf);
+#endif
 	// Signal to terminate the dpu master thread
 	pthread_mutex_lock(&mutex);
 	args.stop_thread = 1;
