@@ -176,9 +176,7 @@ static void load_rank(struct dpu_set_t *dpu_rank, master_args_t *args) {
 	// Zero out the rank
 	uint32_t zero[NR_TASKLETS];
 	memset(zero, 0, NR_TASKLETS * sizeof(uint32_t));
-	// printf("LOAD 0\n");
 	DPU_ASSERT(dpu_copy_to(*dpu_rank, "input_length", 0, zero, NR_TASKLETS * sizeof(uint32_t)));
-	// printf("LOAD 1\n");
 
 	struct dpu_set_t dpu;
 	for (int i = 0; i < NR_TASKLETS; i++) {
@@ -193,11 +191,9 @@ static void load_rank(struct dpu_set_t *dpu_rank, master_args_t *args) {
 				break;
 
 			DPU_ASSERT(dpu_copy_to(dpu, "req_idx", i * sizeof(uint32_t), &idx, sizeof(uint32_t)));
-			// printf("LOAD 2\n");
 			uint32_t input_length = args->caller_args[idx]->input->length - (args->caller_args[idx]->input->curr - args->caller_args[idx]->input->buffer);
 			DPU_ASSERT(dpu_copy_to(dpu, "input_length", i * sizeof(uint32_t), &(input_length), sizeof(uint32_t)));
 			DPU_ASSERT(dpu_copy_to(dpu, "output_length", i * sizeof(uint32_t), &(args->caller_args[idx]->output->length), sizeof(uint32_t))); 
-			// printf("LOAD 3\n");
 			// Update max input length
 			max_input_length = MAX(max_input_length, ALIGN(input_length, 8));
 
@@ -210,21 +206,18 @@ static void load_rank(struct dpu_set_t *dpu_rank, master_args_t *args) {
 		idx = start_idx;
 		uint32_t dpu_count = 0;
 		uint8_t *buf = malloc(max_input_length * total_dpu_count);
-		// printf("LOAD 4\n");
 		DPU_FOREACH(*dpu_rank, dpu) {
 			if (idx == args->req_head)
 				break;
 
 			memcpy(&buf[dpu_count * max_input_length], args->caller_args[idx]->input->curr, args->caller_args[idx]->input->length - (args->caller_args[idx]->input->curr - args->caller_args[idx]->input->buffer));
 			DPU_ASSERT(dpu_prepare_xfer(dpu, (void *)&buf[dpu_count * max_input_length]));
-			// printf("LOAD 5\n");
 			idx = (idx + 1) % total_request_slots;
 			dpu_count++;
 			args->req_waiting--;
 		}
 
 		DPU_ASSERT(dpu_push_xfer(*dpu_rank, DPU_XFER_TO_DPU, "input_buffer", i * MAX_INPUT_SIZE, max_input_length, DPU_XFER_DEFAULT));
-		// printf("LOAD 6\n");
 		free(buf);
 		start_idx = idx;
 	}
@@ -354,9 +347,7 @@ static void * dpu_uncompress(void *arg) {
 			DPU_RANK_FOREACH(dpus, dpu_rank) {
 				if ((free_ranks & (1 << rank_id)) && args->req_waiting) {
 					pthread_mutex_lock(&mutex);
-					gettimeofday(&load, NULL);
 					load_rank(&dpu_rank, args);
-					// printf("load %ld\n", rank_id);
 					pthread_mutex_unlock(&mutex);
 
 					ranks_dispatched |= (1 << rank_id);
