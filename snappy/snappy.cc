@@ -1410,12 +1410,12 @@ bool RawUncompress(const char* compressed, size_t compressed_length,
   if (!GetUncompressedLength(compressed, compressed_length, &ulength)) {
     return false;
   }
-#if(ulength == BLOCK_SIZE)
+  if(ulength == BLOCK_SIZE)
     return (bool)pim_decompress(compressed, compressed_length, uncompressed);
-#else
+  else {
     ByteArraySource reader(compressed, compressed_length);
     return RawUncompress(&reader, uncompressed);
-#endif
+  }
 #endif
 }
 
