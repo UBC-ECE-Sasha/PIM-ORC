@@ -247,12 +247,14 @@ if (USE_PIM)
     endif()
     if (NOT NR_TASKLETS)
 		set(NR_TASKLETS 1)
+    if (NOT BLOCK_SIZE)
+    set(BLOCK_SIZE 32*1024)
 	endif()
 
 	target_link_libraries(snappy ${DPU_LIBRARIES})
 
 	# Add additional DPU-specific defines 
-	add_definitions(-DUSE_PIM=1 -DNR_DPUS=${NR_DPUS} -DNR_TASKLETS=${NR_TASKLETS} -DDPU_PROGRAM=${DPU_PROGRAM})
+	add_definitions(-DUSE_PIM=1 -DBLOCK_SIZE=${BLOCK_SIZE} -DNR_DPUS=${NR_DPUS} -DNR_TASKLETS=${NR_TASKLETS} -DDPU_PROGRAM=${DPU_PROGRAM})
 endif()
 
 set_target_properties(snappy

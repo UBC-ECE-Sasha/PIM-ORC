@@ -14,6 +14,7 @@ clean:
 
 NR_TASKLETS = 1
 USE_PIM = 0
+BLOCK_SIZE = 32 * 1024
 
 SNAPPY_HOME := $(shell pwd)/build/snappy
 SNAPPY_SRC  := $(shell cd ../snappy; pwd)
@@ -24,7 +25,7 @@ $(SNAPPY_LIB):
 	cd $(SNAPPY_SRC)/pim-snappy && make NR_TASKLETS=$(NR_TASKLETS)
 	mkdir -p build
 	cd build && mkdir -p snappy
-	cd build/snappy && cmake -DUSE_PIM=$(USE_PIM) -DNR_TASKLETS=$(NR_TASKLETS) -DDPU_PROGRAM=$(DPU_PROGRAM) -DCMAKE_INSTALL_PREFIX=$(SNAPPY_HOME) -DCMAKE_INSTALL_LIBDIR=$(SNAPPY_HOME) ../../../snappy && make 
+	cd build/snappy && cmake -DBLOCK_SIZE=$(BLOCK_SIZE) -DUSE_PIM=$(USE_PIM) -DNR_TASKLETS=$(NR_TASKLETS) -DDPU_PROGRAM=$(DPU_PROGRAM) -DCMAKE_INSTALL_PREFIX=$(SNAPPY_HOME) -DCMAKE_INSTALL_LIBDIR=$(SNAPPY_HOME) ../../../snappy && make 
 
 APACHE_ORC_LIB := build/c++/src/liborc.a
 $(APACHE_ORC_LIB):
@@ -38,4 +39,4 @@ INCLUDES := -I../snappy -I../orc/c++/include -I../orc/c++/src -I../orc/c++/src/s
 LIBS = $(shell find . -name *.a)
 
 reader: $(SOURCE) $(SNAPPY_LIB) $(APACHE_ORC_LIB)
-	$(CC) $(CFLAGS) -o $@ $(SOURCE) $(LIBS) -DUSE_PIM=$(USE_PIM) $(INCLUDES) -lsnappy -L./build/snappy $(DPU_OPTS)
+	$(CC) $(CFLAGS) -o $@ $(SOURCE) $(LIBS) -DBLOCK_SIZE=$(BLOCK_SIZE) -DUSE_PIM=$(USE_PIM) $(INCLUDES) -lsnappy -L./build/snappy $(DPU_OPTS)
