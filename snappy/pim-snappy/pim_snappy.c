@@ -241,7 +241,7 @@ static void unload_rank(struct dpu_set_t *dpu_rank, master_args_t *args, struct 
 	for (int i = 0; i < NR_TASKLETS; i++) {
 		// Get the decompressed buffer
 		uint32_t dpu_count = 0;
-		uint32_t perf = 0;
+		uint32_t perf[NR_TASKLETS] = 0;
 		DPU_FOREACH(*dpu_rank, dpu, dpu_id) {
 			output_length = 0;
 			DPU_ASSERT(dpu_copy_from(dpu, "output_length", i * sizeof(uint32_t), &output_length, sizeof(uint32_t)));
@@ -259,7 +259,7 @@ static void unload_rank(struct dpu_set_t *dpu_rank, master_args_t *args, struct 
 			DPU_ASSERT(dpu_copy_from(dpu, "retval", i * sizeof(uint32_t), &(args->caller_args[req_idx]->retval), sizeof(uint32_t)));
 			args->caller_args[req_idx]->data_ready = 0;
 			// Get the performance metric
-			DPU_ASSERT(dpu_copy_from(dpu, "perf", i * sizeof(uint32_t), &perf, sizeof(uint32_t)));
+			DPU_ASSERT(dpu_copy_from(dpu, "perf", i * sizeof(uint32_t), &perf, NR_TASKLETS*sizeof(uint32_t)));
 			rank_ctx->dpus[dpu_id].perf += perf; // cumulative performance
 			// Set up the transfer
 			DPU_ASSERT(dpu_prepare_xfer(dpu, (void *)args->caller_args[req_idx]->output->curr));
