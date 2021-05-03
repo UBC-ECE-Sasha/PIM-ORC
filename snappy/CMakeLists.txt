@@ -242,14 +242,15 @@ if (USE_PIM)
 		"pim-snappy/pim_snappy.h"
     )
 
-    if (NOT NR_DPUS)
-		set(NR_DPUS 1)
-    endif()
-    if (NOT NR_TASKLETS)
-		set(NR_TASKLETS 1)
-    if (NOT BLOCK_SIZE)
-    set(BLOCK_SIZE 32*1024)
-	endif()
+  if (NOT NR_DPUS)
+  set(NR_DPUS 1)
+  endif()
+  if (NOT NR_TASKLETS)
+  set(NR_TASKLETS 1)
+  endif()
+  if (NOT BLOCK_SIZE)
+  set(BLOCK_SIZE 32*1024)
+  endif()
 
 	target_link_libraries(snappy ${DPU_LIBRARIES})
 
