@@ -25,7 +25,7 @@
 // TODO: consolidate these with what is in dpu_task.c, should be in one place
 #define MAX_INPUT_SIZE (256 * 1024)
 #define MAX_OUTPUT_SIZE (512 * 1024)
-#define OUTPUT_SIZE (256 * 1024)
+#define OUTPUT_SIZE (32 * 1024)
 
 // to extract components from dpu_id_t
 #define DPU_ID_RANK(_x) ((_x >> 16) & 0xFF)
@@ -420,7 +420,7 @@ int pim_init(void) {
 }
 
 void pim_deinit(void) {
-#ifdef STATISTICS
+
 	// get DPU stats 
 	uint32_t rank_id = 0;
 	double total_dpu_perf = 0.0;
@@ -435,7 +435,7 @@ void pim_deinit(void) {
 		rank_id++;
 	}
 	printf("total runtime of all ranks %lf\n", total_dpu_perf);
-#endif
+
 	// Signal to terminate the dpu master thread
 	pthread_mutex_lock(&mutex);
 	args.stop_thread = 1;
