@@ -262,7 +262,7 @@ static void unload_rank(struct dpu_set_t *dpu_rank, master_args_t *args, struct 
 			DPU_ASSERT(dpu_copy_from(dpu, "retval", i * sizeof(uint32_t), &(args->caller_args[req_idx]->retval), sizeof(uint32_t)));
 			args->caller_args[req_idx]->data_ready = 0;
 			// Get the performance metric
-			DPU_ASSERT(dpu_copy_from(dpu, "perf", sizeof(uint32_t), &perf, sizeof(uint32_t)));
+			DPU_ASSERT(dpu_copy_from(dpu, "perf", 0, &perf, sizeof(uint32_t)));
 			rank_ctx->dpus[dpu_id].perf += perf; // cumulative performance
 			// Set up the transfer
 			DPU_ASSERT(dpu_prepare_xfer(dpu, (void *)args->caller_args[req_idx]->output->curr));
