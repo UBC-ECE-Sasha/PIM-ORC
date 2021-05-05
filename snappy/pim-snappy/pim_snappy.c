@@ -242,8 +242,6 @@ static void unload_rank(struct dpu_set_t *dpu_rank, master_args_t *args, struct 
 		// Get the decompressed buffer
 		uint32_t dpu_count = 0;
 		uint32_t perf = 0;
-		// uint32_t perf[NR_TASKLETS];
-		// memset(perf, 0, NR_TASKLETS * sizeof(uint32_t));
 
 		DPU_FOREACH(*dpu_rank, dpu, dpu_id) {
 			output_length = 0;
@@ -297,6 +295,10 @@ static void * dpu_uncompress(void *arg) {
 	struct timespec time_to_wait;
 	struct timeval first, second;
 	uint32_t ranks_dispatched = 0;
+
+	// Profiling variables
+	uint32_t temp=0, reqUnloaded = 0, reqLoaded = 0;
+
 	while (args->stop_thread != 1) { 
 		pthread_mutex_lock(&mutex);
 
@@ -313,6 +315,12 @@ static void * dpu_uncompress(void *arg) {
 		gettimeofday(&second, NULL);
 		if ((args->req_waiting >= REQUESTS_TO_WAIT_FOR) || (timediff(&first, &second) >= MAX_TIME_WAIT_S)) {
 			send_req = true;
+			// profiling logic: print the status every MAX_TIME_WAIT_S
+			if (timediff(&first, &second) >= MAX_TIME_WAIT_S) {
+				printf("%d\t%d\t%d\n", args->req_waiting, reqUnloaded, reqLoaded);
+				reqUnloaded = 0;
+				reqLoaded = 0;
+			}
 		}
 		pthread_mutex_unlock(&mutex);
 
@@ -329,7 +337,9 @@ static void * dpu_uncompress(void *arg) {
 					pthread_mutex_lock(&mutex);
 					// get rank_context
 					host_rank_context* rank_ctx = &ctx[rank_id];
+					temp = args->req_count;
 					unload_rank(&dpu_rank, args, rank_ctx);
+					reqUnloaded+= temp - args->req_count;
 					pthread_mutex_unlock(&mutex);
 			
 					ranks_dispatched &= ~(1 << rank_id);
@@ -346,7 +356,9 @@ static void * dpu_uncompress(void *arg) {
 			DPU_RANK_FOREACH(dpus, dpu_rank) {
 				if ((free_ranks & (1 << rank_id)) && args->req_waiting) {
 					pthread_mutex_lock(&mutex);
+					temp = args->req_waiting;
 					load_rank(&dpu_rank, args);
+					reqLoaded += temp - args->req_waiting;
 					pthread_mutex_unlock(&mutex);
 
 					ranks_dispatched |= (1 << rank_id);
