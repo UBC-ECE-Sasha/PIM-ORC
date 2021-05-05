@@ -25,6 +25,7 @@
 // TODO: consolidate these with what is in dpu_task.c, should be in one place
 #define MAX_INPUT_SIZE (256 * 1024)
 #define MAX_OUTPUT_SIZE (512 * 1024)
+// TODO: Change to BLOCK_SIZE
 #define OUTPUT_SIZE (32 * 1024)
 
 // to extract components from dpu_id_t
@@ -58,6 +59,7 @@ typedef struct master_args {
 	uint32_t req_tail_dispatched;   // Next slot to be loaded to DPU in caller_args 
 	uint32_t req_count;             // Number of occupied slots in caller_args
 	uint32_t req_waiting;           // Number of requests waiting that haven't been dispatched
+	uint32_t req_total;
 	caller_args_t **caller_args;    // Request buffer
 } master_args_t;
 
@@ -317,7 +319,7 @@ static void * dpu_uncompress(void *arg) {
 			send_req = true;
 			// profiling logic: print the status every MAX_TIME_WAIT_S
 			if (timediff(&first, &second) >= MAX_TIME_WAIT_S) {
-				printf("%d\t%d\t%d\n", args->req_waiting, reqUnloaded, reqLoaded);
+				// printf("%d\t%d\t%d\n", args->req_waiting, reqUnloaded, reqLoaded);
 				reqUnloaded = 0;
 				reqLoaded = 0;
 			}
@@ -394,6 +396,7 @@ int pim_init(void) {
 	args.req_tail = 0;
 	args.req_count = 0;
 	args.req_waiting = 0;
+	args.req_total = 0;
 	args.caller_args = (caller_args_t **)malloc(sizeof(caller_args_t *) * total_request_slots);
 
 	// allocate space for DPU descriptors for all ranks
@@ -447,6 +450,7 @@ void pim_deinit(void) {
 		rank_id++;
 	}
 	printf("total runtime of all ranks %lf\n", total_dpu_perf);
+	printf("Total # of requests\n", args.req_total)
 
 	// Signal to terminate the dpu master thread
 	pthread_mutex_lock(&mutex);
@@ -511,6 +515,7 @@ int pim_decompress(const char *compressed, size_t compressed_length, char *uncom
 	args.req_head = (args.req_head + 1) % total_request_slots;
 	args.req_count++;
 	args.req_waiting++;
+	args.req_total++;
 	pthread_cond_broadcast(&dpu_cond);
 
 	// Wait for request to be processed
