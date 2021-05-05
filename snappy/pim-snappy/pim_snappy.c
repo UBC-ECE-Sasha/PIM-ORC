@@ -450,7 +450,7 @@ void pim_deinit(void) {
 		rank_id++;
 	}
 	printf("total runtime of all ranks %lf\n", total_dpu_perf);
-	printf("Total # of requests\n", args.req_total)
+	printf("Total # of requests\n", args.req_total);
 
 	// Signal to terminate the dpu master thread
 	pthread_mutex_lock(&mutex);
