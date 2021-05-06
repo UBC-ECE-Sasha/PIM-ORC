@@ -319,7 +319,7 @@ static void * dpu_uncompress(void *arg) {
 			send_req = true;
 			// profiling logic: print the status every MAX_TIME_WAIT_S
 			if (timediff(&first, &second) >= MAX_TIME_WAIT_S) {
-				// printf("%d\t%d\t%d\n", args->req_waiting, reqUnloaded, reqLoaded);
+				printf("%d\t%d\t%d\n", args->req_waiting, reqUnloaded, reqLoaded);
 				reqUnloaded = 0;
 				reqLoaded = 0;
 			}
