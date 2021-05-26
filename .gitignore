@@ -7,3 +7,5 @@ orc-parser/reader
 */CMakeCache.txt
 *.cmake
 *.svg
+*.log
+*.dpu
