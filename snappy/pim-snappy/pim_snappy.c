@@ -18,7 +18,7 @@
 #include "PIM-common/common/include/common.h"
 
 // Parameters to tune
-#define REQUESTS_TO_WAIT_FOR 3 // Number of requests to wait for before sending
+#define REQUESTS_TO_WAIT_FOR NR_TASKLET*64 // Number of requests to wait for before sending
 #define MAX_TIME_WAIT_MS 5     // Time in ms to wait before sending current requests
 #define MAX_TIME_WAIT_S (MAX_TIME_WAIT_MS / 1000)
 
@@ -34,6 +34,8 @@
 #define DPU_ID_DPU(_x) ((_x) & 0xFF)
 
 #define DPU_CLOCK_CYCLE 266000000// TODO: confirm this
+
+#define NUM_BUFFERS 5
 
 // Buffer context struct for input and output buffers on host
 typedef struct host_buffer_context
@@ -80,9 +82,9 @@ static uint32_t num_ranks = 0;
 static uint32_t num_dpus = 0;
 
 // Thread variables
-static pthread_mutex_t mutex;
-static pthread_cond_t caller_cond;
-static pthread_cond_t dpu_cond;
+static pthread_mutex_t mutex[NUM_BUFFERS];
+static pthread_cond_t caller_cond[NUM_BUFFERS];
+static pthread_cond_t dpu_cond[NUM_BUFFERS];
 
 static pthread_t dpu_master_thread;
 static master_args_t args;
@@ -92,6 +94,9 @@ static uint32_t total_request_slots = 0;
 static struct host_rank_context *ctx;
 static uint32_t dpus_per_rank;
 
+// Tunning variables
+struct timeval t1, t2;
+double memcpyTime = 0;
 
 /**
  * Attempt to read a varint from the input buffer. The format of a varint
@@ -204,6 +209,8 @@ static void load_rank(struct dpu_set_t *dpu_rank, master_args_t *args) {
 
 		// Copy the input buffer 
 		// TODO: adjust how this is done so we don't have to malloc a massive buffer every time
+		// TODO: Instead of allocating a huge buffer everytime, a buffer size of 
+		// BLOCK_SIZE * NR_TASKLET * total_dpu_count should already be allocated and ready to use.
 		idx = start_idx;
 		uint32_t dpu_count = 0;
 		uint8_t *buf = malloc(max_input_length * total_dpu_count);
@@ -211,7 +218,11 @@ static void load_rank(struct dpu_set_t *dpu_rank, master_args_t *args) {
 			if (idx == args->req_head)
 				break;
 
+			gettimeofday(&t1, NULL);
 			memcpy(&buf[dpu_count * max_input_length], args->caller_args[idx]->input->curr, args->caller_args[idx]->input->length - (args->caller_args[idx]->input->curr - args->caller_args[idx]->input->buffer));
+			gettimeofday(&t2, NULL);
+			memcpyTime += timediff(t1, t2);
+
 			DPU_ASSERT(dpu_prepare_xfer(dpu, (void *)&buf[dpu_count * max_input_length]));
 			idx = (idx + 1) % total_request_slots;
 			dpu_count++;
@@ -299,12 +310,13 @@ static void * dpu_uncompress(void *arg) {
 	uint32_t ranks_dispatched = 0;
 
 	// Profiling variables
-	uint32_t temp=0, reqUnloaded = 0, reqLoaded = 0;
+	// uint32_t temp=0, reqUnloaded = 0, reqLoaded = 0;
 
 	while (args->stop_thread != 1) { 
 		pthread_mutex_lock(&mutex);
 
 		gettimeofday(&first, NULL);
+		// TODO: Remove; unnecessary
 		gettimeofday(&second, NULL);
 
 		time_to_wait.tv_sec = second.tv_sec;
@@ -318,11 +330,11 @@ static void * dpu_uncompress(void *arg) {
 		if ((args->req_waiting >= REQUESTS_TO_WAIT_FOR) || (timediff(&first, &second) >= MAX_TIME_WAIT_S)) {
 			send_req = true;
 			// profiling logic: print the status every MAX_TIME_WAIT_S
-			if (timediff(&first, &second) >= MAX_TIME_WAIT_S) {
-				printf("%d\t%d\t%d\n", args->req_waiting, reqUnloaded, reqLoaded);
-				reqUnloaded = 0;
-				reqLoaded = 0;
-			}
+			// if (timediff(&first, &second) >= MAX_TIME_WAIT_S) {
+			// 	printf("%d\t%d\t%d\n", args->req_waiting, reqUnloaded, reqLoaded);
+			// 	reqUnloaded = 0;
+			// 	reqLoaded = 0;
+			// }
 		}
 		pthread_mutex_unlock(&mutex);
 
@@ -339,9 +351,9 @@ static void * dpu_uncompress(void *arg) {
 					pthread_mutex_lock(&mutex);
 					// get rank_context
 					host_rank_context* rank_ctx = &ctx[rank_id];
-					temp = args->req_count;
+					// temp = args->req_count;
 					unload_rank(&dpu_rank, args, rank_ctx);
-					reqUnloaded+= temp - args->req_count;
+					// reqUnloaded+= temp - args->req_count;
 					pthread_mutex_unlock(&mutex);
 			
 					ranks_dispatched &= ~(1 << rank_id);
@@ -358,9 +370,9 @@ static void * dpu_uncompress(void *arg) {
 			DPU_RANK_FOREACH(dpus, dpu_rank) {
 				if ((free_ranks & (1 << rank_id)) && args->req_waiting) {
 					pthread_mutex_lock(&mutex);
-					temp = args->req_waiting;
+					// temp = args->req_waiting;
 					load_rank(&dpu_rank, args);
-					reqLoaded += temp - args->req_waiting;
+					// reqLoaded += temp - args->req_waiting;
 					pthread_mutex_unlock(&mutex);
 
 					ranks_dispatched |= (1 << rank_id);
@@ -423,11 +435,11 @@ int pim_init(void) {
 
 	// Create condition variables for both directions
 	if (pthread_cond_init(&caller_cond, NULL) != 0) {
-		fprintf(stderr, "Faled to create calller condition variable\n");
+		fprintf(stderr, "Failed to create calller condition variable\n");
 		return -1;
 	}
 	if (pthread_cond_init(&dpu_cond, NULL) != 0) {
-		fprintf(stderr, "Faled to create dpu condition variable\n");
+		fprintf(stderr, "Failed to create dpu condition variable\n");
 		return -1;
 	}
 
@@ -451,6 +463,7 @@ void pim_deinit(void) {
 	}
 	printf("total runtime of all ranks %lf\n", total_dpu_perf);
 	printf("Total # of requests %d\n", args.req_total);
+	printf("Time it took to mem_cpy %f\n", memcpyTime);
 
 	// Signal to terminate the dpu master thread
 	pthread_mutex_lock(&mutex);
