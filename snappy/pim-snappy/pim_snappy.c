@@ -18,7 +18,7 @@
 #include "PIM-common/common/include/common.h"
 
 // Parameters to tune
-#define REQUESTS_TO_WAIT_FOR NR_TASKLET*64 // Number of requests to wait for before sending
+#define REQUESTS_TO_WAIT_FOR NR_TASKLETS * 64 // Number of requests to wait for before sending
 #define MAX_TIME_WAIT_MS 5     // Time in ms to wait before sending current requests
 #define MAX_TIME_WAIT_S (MAX_TIME_WAIT_MS / 1000)
 
@@ -221,7 +221,7 @@ static void load_rank(struct dpu_set_t *dpu_rank, master_args_t *args) {
 			gettimeofday(&t1, NULL);
 			memcpy(&buf[dpu_count * max_input_length], args->caller_args[idx]->input->curr, args->caller_args[idx]->input->length - (args->caller_args[idx]->input->curr - args->caller_args[idx]->input->buffer));
 			gettimeofday(&t2, NULL);
-			memcpyTime += timediff(t1, t2);
+			memcpyTime += timediff(&t1, &t2);
 
 			DPU_ASSERT(dpu_prepare_xfer(dpu, (void *)&buf[dpu_count * max_input_length]));
 			idx = (idx + 1) % total_request_slots;
