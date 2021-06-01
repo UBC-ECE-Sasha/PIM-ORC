@@ -170,6 +170,19 @@ static void get_free_ranks(uint32_t* free_ranks) {
 }
 
 /**
+ * Calculate the time difference in seconds between start and end.
+ *
+ * @param start: start time
+ * @param end: end time
+ * @return difference in seconds
+ */
+static inline double timediff(struct timeval *start, struct timeval *end) {
+	double start_time = start->tv_sec + start->tv_usec / 1000000.0;
+	double end_time = end->tv_sec + end->tv_usec / 1000000.0;
+	return (end_time - start_time);
+}
+
+/**
  * Load a set of requests to a DPU rank.
  *
  * @param dpu_rank: pointer to the rank handle to load to
@@ -281,19 +294,6 @@ static void unload_rank(struct dpu_set_t *dpu_rank, master_args_t *args, struct 
 		}
 		DPU_ASSERT(dpu_push_xfer(*dpu_rank, DPU_XFER_FROM_DPU, "output_buffer", i * MAX_OUTPUT_SIZE, OUTPUT_SIZE, DPU_XFER_DEFAULT));
 	}
-}
-
-/**
- * Calculate the time difference in seconds between start and end.
- *
- * @param start: start time
- * @param end: end time
- * @return difference in seconds
- */
-static inline double timediff(struct timeval *start, struct timeval *end) {
-	double start_time = start->tv_sec + start->tv_usec / 1000000.0;
-	double end_time = end->tv_sec + end->tv_usec / 1000000.0;
-	return (end_time - start_time);
 }
 
 /**
